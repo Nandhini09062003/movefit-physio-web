@@ -21,7 +21,7 @@ export const Header: React.FC = () => {
   };
 
   return (
-    <nav className="navbar navbar-expand-lg bg-white sticky-top shadow-sm py-2">
+    <nav className="navbar navbar-expand-sm bg-white sticky-top shadow-sm py-2 movefit-header">
       <div className="container">
         <a className="navbar-brand d-flex align-items-center" href="/home">
           <img src={logo} alt="Movefit Physio Rehab Clinic" height="50" className="d-inline-block me-2" />

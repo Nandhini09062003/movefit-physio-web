@@ -7,11 +7,13 @@ import pelvicCareImage from '../assets/Women Health & Pelvic Care.jpeg';
 import geriatricCareImage from '../assets/Geriatric Wellness & Active Aging.jpeg';
 
 export const WHATSAPP_NUMBER = '8438118402';
+export const CLINIC_PHONE_NUMBER = '+918438118402';
+export const APPOINTMENT_MESSAGE = 'Hello Movefit Team, I would like to book an appointment for a physiotherapy consultation.';
 export const GOOGLE_REVIEWS_URL = 'https://search.google.com/local/reviews?placeid=ChIJ_5bQFVAvqjsR0Up1azxR-c0';
 export const GOOGLE_WRITE_REVIEW_URL = 'https://search.google.com/local/writereview?placeid=ChIJ_5bQFVAvqjsR0Up1azxR-c0';
 
 export const openWhatsAppAppointment = () => {
-  const message = encodeURIComponent('Hello Movefit Team, I would like to book an appointment for a physiotherapy consultation.');
+  const message = encodeURIComponent(APPOINTMENT_MESSAGE);
   window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${message}`, '_blank');
 };
 

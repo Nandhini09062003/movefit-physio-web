@@ -287,7 +287,11 @@ export const FILTERS: { label: string; key: CategoryKey | 'all' }[] = [
   { label: 'Virtual & Home Care', key: 'virtual' },
 ];
 
-export const getWhatsAppUrl = (service: ClinicalService, question: string) => {
-  const message = `Hello Doctor, I have a doubt regarding *${service.title}*: "${question.trim()}"`;
-  return `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(message)}`;
-};
+const getInquiryMessage = (service: ClinicalService, question: string) =>
+  `Hello Doctor, I have a doubt regarding *${service.title}*: "${question.trim()}"`;
+
+export const getWhatsAppUrl = (service: ClinicalService, question: string) =>
+  `https://wa.me/91${WHATSAPP_PHONE}?text=${encodeURIComponent(getInquiryMessage(service, question))}`;
+
+export const getSmsUrl = (service: ClinicalService, question: string) =>
+  `sms:+91${WHATSAPP_PHONE}?&body=${encodeURIComponent(getInquiryMessage(service, question))}`;

@@ -1,10 +1,65 @@
 import React, { useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { ArrowUpRight, Check, MapPin, Target } from 'lucide-react';
 import Header from './Header';
 import Footer from './Footer';
 import programs from '../constants/rehabPrograms.constants';
 import { AnimatedText } from './AnimatedText';
+import type { RehabProgram } from '../types/rehabPrograms.types';
+
+const ProgramDetails: React.FC<{ program: RehabProgram; isSelected: boolean }> = ({ program, isSelected }) => (
+	<>
+		<article className="mf-program-hero-card">
+			<img src={isSelected ? program.image : undefined} alt="" />
+			<div className="mf-program-hero-shade" />
+			<div className="mf-program-stats">
+				<span><Target size={14} aria-hidden="true" /><small>Focus</small><strong>{program.focus}</strong></span>
+				<span><MapPin size={14} aria-hidden="true" /><small>Format</small><strong>{program.format}</strong></span>
+			</div>
+			<div className="mf-program-hero-copy">
+				<span className="mf-program-category">{program.category}</span>
+				<h2>{program.title}</h2>
+				<h3>{program.tagline}</h3>
+				<p>{program.description}</p>
+			</div>
+		</article>
+
+		<div className="mf-program-detail-grid">
+			<section className="mf-program-panel">
+				<div className="mf-program-panel-heading"><span>01</span><h3>What We Do</h3></div>
+				<ul className="mf-program-activities">
+					{program.activities.map((activity) => {
+						const labelEnd = activity.indexOf(':');
+
+						return (
+							<li key={activity}>
+								<Check size={16} aria-hidden="true" />
+								<span>
+									{labelEnd === -1 ? activity : <><strong>{activity.slice(0, labelEnd + 1)}</strong>{activity.slice(labelEnd + 1)}</>}
+								</span>
+							</li>
+						);
+					})}
+				</ul>
+			</section>
+			<section className="mf-program-panel">
+				<div className="mf-program-panel-heading"><span>02</span><h3>Who Is It For?</h3></div>
+				<p className="mf-program-panel-intro">A good fit if you&apos;re:</p>
+				<ul className="mf-program-audiences">
+					{program.audiences.map((audience) => <li key={audience}>{audience}</li>)}
+				</ul>
+			</section>
+		</div>
+
+		<section className="mf-program-outcome">
+			<div className="mf-program-outcomes-list">
+				<span className="mf-program-outcome-label">What You Get</span>
+				<ul>{program.outcomes.map((outcome) => <li key={outcome}><Check size={14} aria-hidden="true" /><span>{outcome}</span></li>)}</ul>
+			</div>
+			<blockquote><span className="mf-program-outcome-label">The Goal</span><p>“{program.goal}”</p></blockquote>
+		</section>
+	</>
+);
 
 const RehabProgramsPage: React.FC = () => {
 	const [selectedProgramId, setSelectedProgramId] = useState(programs[0].id);
@@ -22,9 +77,9 @@ const RehabProgramsPage: React.FC = () => {
 	};
 
 	return (
-		<div className="mf-programs-page">
+		<div className="mf-programs-page d-flex flex-column min-vh-100">
 			<Header />
-			<main>
+			<main className="flex-grow-1">
 				<section className="mf-programs-hero">
 					<span className="mf-programs-eyebrow">MoveFit Performance & Fitness</span>
 					<AnimatedText
@@ -66,72 +121,37 @@ const RehabProgramsPage: React.FC = () => {
 							</nav>
 						</aside>
 
-						<div className="mf-active-program" ref={activeProgramRef}>
-							<AnimatePresence mode="wait" initial={false}>
-								<motion.div
-									className="mf-active-program-content"
-									key={selectedProgram.id}
-									initial={{ opacity: 0, y: 10 }}
-									animate={{ opacity: 1, y: 0 }}
-									exit={{ opacity: 0, y: -8 }}
-									transition={{ duration: 0.2 }}
-								>
-									<article className="mf-program-hero-card">
-										<img src={selectedProgram.image} alt="" />
-										<div className="mf-program-hero-shade" />
-										<div className="mf-program-stats">
-											<span><Target size={14} aria-hidden="true" /><small>Focus</small><strong>{selectedProgram.focus}</strong></span>
-											<span><MapPin size={14} aria-hidden="true" /><small>Format</small><strong>{selectedProgram.format}</strong></span>
-										</div>
-										<div className="mf-program-hero-copy">
-											<span className="mf-program-category">{selectedProgram.category}</span>
-											<h2>{selectedProgram.title}</h2>
-											<h3>{selectedProgram.tagline}</h3>
-											<p>{selectedProgram.description}</p>
-										</div>
-									</article>
+						<motion.div className="mf-active-program" ref={activeProgramRef}>
+							<div className="mf-active-program-stack">
+								{programs.map((program) => {
+									const isSelected = selectedProgram.id === program.id;
 
-									<div className="mf-program-detail-grid">
-										<section className="mf-program-panel">
-											<div className="mf-program-panel-heading"><span>01</span><h3>What We Do</h3></div>
-											<ul className="mf-program-activities">
-												{selectedProgram.activities.map((activity) => {
-													const labelEnd = activity.indexOf(':');
-
-													return (
-														<li key={activity}>
-															<Check size={16} aria-hidden="true" />
-															<span>
-																{labelEnd === -1 ? activity : <><strong>{activity.slice(0, labelEnd + 1)}</strong>{activity.slice(labelEnd + 1)}</>}
-															</span>
-														</li>
-													);
-												})}
-											</ul>
-										</section>
-										<section className="mf-program-panel">
-											<div className="mf-program-panel-heading"><span>02</span><h3>Who Is It For?</h3></div>
-											<p className="mf-program-panel-intro">A good fit if you&apos;re:</p>
-											<ul className="mf-program-audiences">
-												{selectedProgram.audiences.map((audience) => <li key={audience}>{audience}</li>)}
-											</ul>
-										</section>
-									</div>
-
-									<section className="mf-program-outcome">
-										<div className="mf-program-outcomes-list">
-											<span className="mf-program-outcome-label">What You Get</span>
-											<ul>{selectedProgram.outcomes.map((outcome) => <li key={outcome}><Check size={14} aria-hidden="true" /><span>{outcome}</span></li>)}</ul>
-										</div>
-										<blockquote><span className="mf-program-outcome-label">The Goal</span><p>“{selectedProgram.goal}”</p></blockquote>
-									</section>
-								</motion.div>
-							</AnimatePresence>
-						</div>
+									return (
+										<motion.div
+											className="mf-active-program-content"
+											key={program.id}
+											aria-hidden={!isSelected}
+											initial={false}
+											animate={{ opacity: isSelected ? 1 : 0, y: isSelected ? 0 : 8 }}
+											transition={{ duration: 0.2 }}
+											style={{
+												gridArea: '1 / 1',
+												pointerEvents: isSelected ? 'auto' : 'none',
+												visibility: isSelected ? 'visible' : 'hidden',
+											}}
+										>
+											<ProgramDetails program={program} isSelected={isSelected} />
+										</motion.div>
+									);
+								})}
+							</div>
+						</motion.div>
 					</div>
 				</section>
 			</main>
-			<Footer />
+			<div className="mt-auto">
+				<Footer />
+			</div>
 		</div>
 	);
 };

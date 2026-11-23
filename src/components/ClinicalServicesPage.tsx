@@ -1,23 +1,37 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Check, Layers, LayoutGrid, MessageCircle, PhoneCall } from 'lucide-react';
+import { Check, Layers, LayoutGrid, MessageCircle, MessageSquareText, PhoneCall } from 'lucide-react';
 import Header from './Header';
 import Footer from './Footer';
 import AnimatedText from './AnimatedText';
 import type { ClinicalService, CategoryKey, ViewMode } from '../types/clinicalServices.types';
-import { SERVICES, FILTERS, WHATSAPP_PHONE, getWhatsAppUrl, assessmentSteps, carePrinciples } from '../constants/clinicalServices.constants';
+import { SERVICES, FILTERS, WHATSAPP_PHONE, getWhatsAppUrl, getSmsUrl, assessmentSteps, carePrinciples } from '../constants/clinicalServices.constants';
 
 export const ClinicalServicesPage: React.FC = () => {
     const [activeFilter, setActiveFilter] = useState<CategoryKey | 'all'>('all');
     const [viewMode, setViewMode] = useState<ViewMode>('matrix');
     const [activeServiceId, setActiveServiceId] = useState('08');
     const [openQuestionId, setOpenQuestionId] = useState<string | null>(null);
+    const [pendingInquiry, setPendingInquiry] = useState<{ service: ClinicalService; question: string } | null>(null);
+    const [isEditingInquiry, setIsEditingInquiry] = useState(false);
     const [questions, setQuestions] = useState<Record<string, string>>({});
     const [expandedDescriptions, setExpandedDescriptions] = useState<Record<string, boolean>>({});
     const [canScrollLeft, setCanScrollLeft] = useState(false);
     const [canScrollRight, setCanScrollRight] = useState(false);
     const filterScrollRef = useRef<HTMLDivElement>(null);
     const showcaseFeatureRef = useRef<HTMLElement>(null);
+    const inquiryModalCloseButtonRef = useRef<HTMLButtonElement>(null);
+    const inquiryModalEditButtonRef = useRef<HTMLButtonElement>(null);
+    const inquiryModalEditorRef = useRef<HTMLTextAreaElement>(null);
+    const activeInquiryServiceId = pendingInquiry?.service.id;
+
+    const closeInquiryModal = () => {
+        if (pendingInquiry) {
+            setQuestions((current) => ({ ...current, [pendingInquiry.service.id]: '' }));
+        }
+        setPendingInquiry(null);
+        setIsEditingInquiry(false);
+    };
 
     useEffect(() => {
         const container = filterScrollRef.current;
@@ -38,6 +52,40 @@ export const ClinicalServicesPage: React.FC = () => {
         };
     }, []);
 
+    useEffect(() => {
+        if (!activeInquiryServiceId) return;
+
+        const previousBodyOverflow = document.body.style.overflow;
+        const closeOnEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setQuestions((current) => ({ ...current, [activeInquiryServiceId]: '' }));
+                setPendingInquiry(null);
+                setIsEditingInquiry(false);
+            }
+        };
+        const questionTriggerId = `question-trigger-${activeInquiryServiceId}`;
+
+        document.body.style.overflow = 'hidden';
+        window.addEventListener('keydown', closeOnEscape);
+        inquiryModalCloseButtonRef.current?.focus();
+
+        return () => {
+            document.body.style.overflow = previousBodyOverflow;
+            window.removeEventListener('keydown', closeOnEscape);
+            window.requestAnimationFrame(() => {
+                document.getElementById(questionTriggerId)?.focus();
+            });
+        };
+    }, [activeInquiryServiceId]);
+
+    useEffect(() => {
+        if (isEditingInquiry) {
+            inquiryModalEditorRef.current?.focus();
+        } else {
+            inquiryModalEditButtonRef.current?.focus();
+        }
+    }, [isEditingInquiry]);
+
     const visibleServices = SERVICES.filter((service) => activeFilter === 'all' || service.categoryKey === activeFilter);
     const featuredService = visibleServices.find((service) => service.id === activeServiceId) ?? visibleServices[0];
 
@@ -46,8 +94,16 @@ export const ClinicalServicesPage: React.FC = () => {
     };
 
     const sendQuestion = (service: ClinicalService) => {
-        window.open(getWhatsAppUrl(service, questions[service.id] ?? ''), '_blank', 'noopener,noreferrer');
+        const question = questions[service.id]?.trim() ?? '';
+        if (!question) return;
+
+        setPendingInquiry({ service, question });
+        setIsEditingInquiry(false);
         setOpenQuestionId(null);
+    };
+
+    const updatePendingInquiryQuestion = (question: string) => {
+        setPendingInquiry((current) => current ? { ...current, question } : current);
     };
 
     const scrollCategories = (direction: -1 | 1) => {
@@ -138,7 +194,14 @@ export const ClinicalServicesPage: React.FC = () => {
                     <textarea id={`question-${service.id}`} value={questions[service.id] ?? ''} onChange={(event) => updateQuestion(service.id, event.target.value)} placeholder="Type your query or symptom here..." rows={3} />
                     <div className="mf-question-actions">
                         <button type="button" className="mf-cancel-button" onClick={() => setOpenQuestionId(null)}>Cancel</button>
-                        <button type="button" className="mf-send-button" onClick={() => sendQuestion(service)}>Send to WhatsApp 💬</button>
+                        <button
+                            type="button"
+                            className="mf-send-button"
+                            disabled={!(questions[service.id] ?? '').trim()}
+                            onClick={() => sendQuestion(service)}
+                        >
+                            Send
+                        </button>
                     </div>
                 </motion.div>
             )}
@@ -157,7 +220,7 @@ export const ClinicalServicesPage: React.FC = () => {
             <div className="mf-card-content">
                 <h3>{service.title}</h3>
                 {renderDescription(service)}
-                <button type="button" className="mf-inquiry-trigger" aria-expanded={openQuestionId === service.id} onClick={() => setOpenQuestionId((current) => current === service.id ? null : service.id)}>
+                <button id={`question-trigger-${service.id}`} type="button" className="mf-inquiry-trigger" aria-expanded={openQuestionId === service.id} onClick={() => setOpenQuestionId((current) => current === service.id ? null : service.id)}>
                     <span>Feel free to ask doubts</span><span aria-hidden="true">→</span>
                 </button>
                 {renderInquiry(service)}
@@ -285,7 +348,7 @@ export const ClinicalServicesPage: React.FC = () => {
                                         <span className="mf-showcase-eyebrow">{featuredService.category}</span>
                                         <h2>{featuredService.title}</h2>
                                         {renderDescription(featuredService)}
-                                        <button type="button" className="mf-inquiry-trigger" aria-expanded={openQuestionId === featuredService.id} onClick={() => setOpenQuestionId((current) => current === featuredService.id ? null : featuredService.id)}>
+                                        <button id={`question-trigger-${featuredService.id}`} type="button" className="mf-inquiry-trigger" aria-expanded={openQuestionId === featuredService.id} onClick={() => setOpenQuestionId((current) => current === featuredService.id ? null : featuredService.id)}>
                                             <span>Feel free to ask doubts</span><span aria-hidden="true">→</span>
                                         </button>
                                         {renderInquiry(featuredService)}
@@ -322,6 +385,85 @@ export const ClinicalServicesPage: React.FC = () => {
                         </a>
                     </div>
                 </section>
+                {pendingInquiry && (
+                    <div
+                        className="appointment-modal-backdrop"
+                        onMouseDown={(event) => {
+                            if (event.target === event.currentTarget) closeInquiryModal();
+                        }}
+                    >
+                        <section
+                            className="appointment-modal mf-inquiry-modal"
+                            role="dialog"
+                            aria-modal="true"
+                            aria-labelledby="mf-inquiry-modal-title"
+                            aria-describedby="mf-inquiry-modal-description"
+                        >
+                            <button
+                                ref={inquiryModalCloseButtonRef}
+                                type="button"
+                                className="appointment-modal-close"
+                                aria-label="Close send options"
+                                onClick={closeInquiryModal}
+                            >
+                                &times;
+                            </button>
+                            <h2 id="mf-inquiry-modal-title">Send your doubt</h2>
+                            <p id="mf-inquiry-modal-description">Choose how you would like to send your message:</p>
+                            <div className="mf-inquiry-modal-message">
+                                <div className="mf-inquiry-modal-message-header">
+                                    <strong>{pendingInquiry.service.title}</strong>
+                                    <button
+                                        ref={inquiryModalEditButtonRef}
+                                        type="button"
+                                        className="mf-inquiry-modal-edit"
+                                        aria-controls="mf-inquiry-modal-editor"
+                                        aria-expanded={isEditingInquiry}
+                                        onClick={() => setIsEditingInquiry((editing) => !editing)}
+                                    >
+                                        {isEditingInquiry ? 'Done' : 'Edit'}
+                                    </button>
+                                </div>
+                                {isEditingInquiry ? (
+                                    <textarea
+                                        ref={inquiryModalEditorRef}
+                                        id="mf-inquiry-modal-editor"
+                                        className="mf-inquiry-modal-editor"
+                                        aria-label="Edit your doubt"
+                                        value={pendingInquiry.question}
+                                        onChange={(event) => updatePendingInquiryQuestion(event.target.value)}
+                                        rows={3}
+                                    />
+                                ) : (
+                                    <p>{pendingInquiry.question}</p>
+                                )}
+                            </div>
+                            <div className="appointment-modal-options">
+                                <a
+                                    className="appointment-modal-action appointment-modal-whatsapp"
+                                    href={getWhatsAppUrl(pendingInquiry.service, pendingInquiry.question)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={closeInquiryModal}
+                                >
+                                    <MessageCircle aria-hidden="true" size={20} />
+                                    <span className="appointment-modal-action-label">WhatsApp</span>
+                                </a>
+                                <a
+                                    className="appointment-modal-action appointment-modal-sms"
+                                    href={getSmsUrl(pendingInquiry.service, pendingInquiry.question)}
+                                    onClick={closeInquiryModal}
+                                >
+                                    <MessageSquareText aria-hidden="true" size={20} />
+                                    <span className="appointment-modal-action-label">SMS</span>
+                                </a>
+                            </div>
+                            <p className="mf-inquiry-modal-call">
+                                Or call clinic: <a href={`tel:+91${WHATSAPP_PHONE}`} onClick={closeInquiryModal}>+91 {WHATSAPP_PHONE.slice(0, 5)} {WHATSAPP_PHONE.slice(5)}</a>
+                            </p>
+                        </section>
+                    </div>
+                )}
             </main>
             <Footer />
         </div>

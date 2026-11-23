@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Activity, ArrowRight, CalendarDays, Dumbbell, HeartPulse, Phone, ShieldCheck } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Activity, ArrowRight, CalendarDays, Dumbbell, HeartPulse, MessageCircle, MessageSquareText, Phone, ShieldCheck } from 'lucide-react';
 import activeRehabilitationVideo from '../videos/active-rehabilitation.mp4';
 import patientProgressVideo from '../videos/patient-progress.mp4';
 import StrokeRehabVideo from '../videos/StrokeRehab.mp4';
@@ -8,6 +8,8 @@ import AnimatedText from './AnimatedText';
 import Header from './Header';
 import Footer from './Footer';
 import {
+  APPOINTMENT_MESSAGE,
+  CLINIC_PHONE_NUMBER,
   differences,
   googleReviews,
   GOOGLE_REVIEWS_URL,
@@ -20,10 +22,66 @@ export const HomePage: React.FC = () => {
   const [activeSpecialty, setActiveSpecialty] = useState(0);
   const [activeDifference, setActiveDifference] = useState(0);
   const [stats, setStats] = useState([0, 0]);
+  const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
   const [isReviewsHovered, setIsReviewsHovered] = useState(false);
+  const [isVideosHovered, setIsVideosHovered] = useState(false);
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+  const appointmentTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const appointmentCloseButtonRef = useRef<HTMLButtonElement | null>(null);
   const statsSectionRef = useRef<HTMLElement | null>(null);
   const specialtyDetailRef = useRef<HTMLDivElement | null>(null);
   const reviewsContainerRef = useRef<HTMLDivElement | null>(null);
+  const videosContainerRef = useRef<HTMLDivElement | null>(null);
+  const videosAnimationFrameRef = useRef<number | null>(null);
+
+  const scrollVideoStripTo = useCallback((targetLeft: number) => {
+    const container = videosContainerRef.current;
+    if (!container) return;
+
+    if (videosAnimationFrameRef.current !== null) {
+      cancelAnimationFrame(videosAnimationFrameRef.current);
+    }
+
+    const startLeft = container.scrollLeft;
+    const maxScrollLeft = container.scrollWidth - container.clientWidth;
+    const endLeft = Math.max(0, Math.min(targetLeft, maxScrollLeft));
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || Math.abs(endLeft - startLeft) < 1) {
+      container.style.scrollSnapType = '';
+      container.scrollLeft = endLeft;
+      videosAnimationFrameRef.current = null;
+      return;
+    }
+
+    container.style.scrollSnapType = 'none';
+    const startTime = performance.now();
+    const animateScroll = (currentTime: number) => {
+      const progress = Math.min((currentTime - startTime) / 450, 1);
+      const easedProgress = 1 - Math.pow(1 - progress, 3);
+      container.scrollLeft = startLeft + (endLeft - startLeft) * easedProgress;
+
+      if (progress < 1) {
+        videosAnimationFrameRef.current = requestAnimationFrame(animateScroll);
+        return;
+      }
+
+      container.style.scrollSnapType = '';
+      container.scrollLeft = endLeft;
+      videosAnimationFrameRef.current = null;
+    };
+
+    videosAnimationFrameRef.current = requestAnimationFrame(animateScroll);
+  }, []);
+
+  const scrollVideos = useCallback((direction: -1 | 1) => {
+    const container = videosContainerRef.current;
+    const firstCard = container?.querySelector<HTMLElement>('.transformation-video-card');
+
+    if (!container || !firstCard) return;
+
+    const gap = Number.parseFloat(window.getComputedStyle(container).columnGap) || 0;
+    scrollVideoStripTo(container.scrollLeft + (firstCard.offsetWidth + gap) * direction);
+  }, [scrollVideoStripTo]);
 
   useEffect(() => {
     const statsSection = statsSectionRef.current;
@@ -82,10 +140,63 @@ export const HomePage: React.FC = () => {
     return () => window.clearInterval(intervalId);
   }, [isReviewsHovered]);
 
+  useEffect(() => {
+    const scrollContainer = videosContainerRef.current;
+    if (!scrollContainer || isVideosHovered || isVideoPlaying) return;
+
+    const intervalId = window.setInterval(() => {
+      const maxScrollLeft = scrollContainer.scrollWidth - scrollContainer.clientWidth;
+      const firstCard = scrollContainer.querySelector<HTMLElement>('.transformation-video-card');
+      if (maxScrollLeft <= 0 || !firstCard) return;
+
+      const gap = Number.parseFloat(window.getComputedStyle(scrollContainer).columnGap) || 0;
+      const step = firstCard.offsetWidth + gap;
+      const isAtEnd = scrollContainer.scrollLeft + scrollContainer.clientWidth >= scrollContainer.scrollWidth - 2;
+      if (isAtEnd) {
+        scrollVideoStripTo(0);
+      } else {
+        scrollVideoStripTo(scrollContainer.scrollLeft + step);
+      }
+    }, 3000);
+
+    return () => window.clearInterval(intervalId);
+  }, [isVideosHovered, isVideoPlaying, scrollVideoStripTo]);
+
+  useEffect(() => () => {
+    if (videosAnimationFrameRef.current !== null) {
+      cancelAnimationFrame(videosAnimationFrameRef.current);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isAppointmentModalOpen) return;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previouslyFocusedElement = appointmentTriggerRef.current
+      ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsAppointmentModalOpen(false);
+      }
+    };
+
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', closeOnEscape);
+    appointmentCloseButtonRef.current?.focus();
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      window.removeEventListener('keydown', closeOnEscape);
+      if (previouslyFocusedElement) {
+        previouslyFocusedElement.focus();
+      }
+    };
+  }, [isAppointmentModalOpen]);
+
   const handleSpecialtySelect = (index: number) => {
     setActiveSpecialty(index);
 
-    if (window.matchMedia('(max-width: 991.98px)').matches) {
+    if (window.matchMedia('(max-width: 767.98px)').matches) {
       requestAnimationFrame(() => {
         specialtyDetailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
@@ -143,11 +254,78 @@ export const HomePage: React.FC = () => {
               </div>
             ))}
           </div>
-          <button onClick={openWhatsAppAppointment} className="btn btn-movefit-red btn-lg rounded-pill px-4 shadow-sm me-3 hero-book-appointment">
+          <button
+            ref={appointmentTriggerRef}
+            type="button"
+            aria-haspopup="dialog"
+            aria-expanded={isAppointmentModalOpen}
+            aria-controls="appointment-modal"
+            onClick={() => setIsAppointmentModalOpen(true)}
+            className="btn btn-movefit-red btn-lg rounded-pill px-4 shadow-sm me-3 hero-book-appointment"
+          >
             <CalendarDays aria-hidden="true" size={20} /> Book Appointment <ArrowRight aria-hidden="true" size={18} />
           </button>
         </div>
       </section>
+      {isAppointmentModalOpen && (
+        <div className="appointment-modal-backdrop">
+          <section
+            id="appointment-modal"
+            className="appointment-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="appointment-modal-title"
+            aria-describedby="appointment-modal-description"
+          >
+            <button
+              ref={appointmentCloseButtonRef}
+              type="button"
+              className="appointment-modal-close"
+              aria-label="Close appointment options"
+              onClick={() => setIsAppointmentModalOpen(false)}
+            >
+              &times;
+            </button>
+            <h2 id="appointment-modal-title">Book Your Appointment</h2>
+            <p id="appointment-modal-description">Choose your preferred way to connect with Movefit:</p>
+            <div className="appointment-modal-options">
+              <button
+                type="button"
+                className="appointment-modal-action appointment-modal-whatsapp"
+                onClick={() => {
+                  openWhatsAppAppointment();
+                  setIsAppointmentModalOpen(false);
+                }}
+              >
+                <MessageCircle aria-hidden="true" size={20} />
+                <span className="appointment-modal-action-label">WhatsApp</span>
+                <span className="appointment-modal-hint appointment-modal-hint-fast">Fastest</span>
+              </button>
+              <a
+                className="appointment-modal-action appointment-modal-sms"
+                href={`sms:${CLINIC_PHONE_NUMBER}?body=${encodeURIComponent(APPOINTMENT_MESSAGE)}`}
+                onClick={() => setIsAppointmentModalOpen(false)}
+              >
+                <MessageSquareText aria-hidden="true" size={20} />
+                <span className="appointment-modal-action-label">SMS / Text Message</span>
+                <span className="appointment-modal-hint appointment-modal-hint-sms">No WhatsApp needed</span>
+              </a>
+              <a
+                className="appointment-modal-action appointment-modal-call"
+                href={`tel:${CLINIC_PHONE_NUMBER}`}
+                onClick={() => setIsAppointmentModalOpen(false)}
+              >
+                <Phone aria-hidden="true" size={20} />
+                <span className="appointment-modal-action-copy">
+                  <strong>Call Clinic Directly</strong>
+                  <small>+91 8438118402</small>
+                </span>
+              </a>
+            </div>
+            <p className="appointment-modal-note">No WhatsApp? Tap SMS or Call to book directly.</p>
+          </section>
+        </div>
+      )}
       <div className="marquee-container" aria-label="Movefit performance focus marquee">
         <div className="marquee-track">
           <div className="marquee-group">
@@ -357,31 +535,35 @@ export const HomePage: React.FC = () => {
             <p className="text-dark mb-0">Real exercise guidance, focused movement, and progress built one session at a time.</p>
           </div>
 
-          <div className="transformation-videos">
-            <article className="transformation-video-card">
-              <video className="transformation-video" controls preload="metadata" playsInline>
-                <source src={activeRehabilitationVideo} type="video/mp4" />
-                Your browser does not support embedded video.
-              </video>
-            </article>
-            <article className="transformation-video-card">
-              <video className="transformation-video" controls preload="metadata" playsInline>
-                <source src={patientProgressVideo} type="video/mp4" />
-                Your browser does not support embedded video.
-              </video>
-            </article>
-            <article className="transformation-video-card">
-              <video className="transformation-video" controls preload="metadata" playsInline>
-                <source src={StrokeRehabVideo} type="video/mp4" />
-                Your browser does not support embedded video.
-              </video>
-            </article>
-            <article className="transformation-video-card">
-              <video className="transformation-video" controls preload="metadata" playsInline>
-                <source src={ExerciseTherapyVideo} type="video/mp4" />
-                Your browser does not support embedded video.
-              </video>
-            </article>
+          <div className="video-carousel" onMouseEnter={() => setIsVideosHovered(true)} onMouseLeave={() => setIsVideosHovered(false)}>
+            <button type="button" className="slider-arrow left-arrow video-slider-arrow" aria-label="Scroll videos left" onClick={() => scrollVideos(-1)}>‹</button>
+            <div className="transformation-videos" ref={videosContainerRef} role="region" aria-label="Patient recovery videos">
+              <article className="transformation-video-card">
+                <video className="transformation-video" controls preload="metadata" playsInline onPlay={() => setIsVideoPlaying(true)} onPause={() => setIsVideoPlaying(false)}>
+                  <source src={activeRehabilitationVideo} type="video/mp4" />
+                  Your browser does not support embedded video.
+                </video>
+              </article>
+              <article className="transformation-video-card">
+                <video className="transformation-video" controls preload="metadata" playsInline onPlay={() => setIsVideoPlaying(true)} onPause={() => setIsVideoPlaying(false)}>
+                  <source src={patientProgressVideo} type="video/mp4" />
+                  Your browser does not support embedded video.
+                </video>
+              </article>
+              <article className="transformation-video-card">
+                <video className="transformation-video" controls preload="metadata" playsInline onPlay={() => setIsVideoPlaying(true)} onPause={() => setIsVideoPlaying(false)}>
+                  <source src={StrokeRehabVideo} type="video/mp4" />
+                  Your browser does not support embedded video.
+                </video>
+              </article>
+              <article className="transformation-video-card">
+                <video className="transformation-video" controls preload="metadata" playsInline onPlay={() => setIsVideoPlaying(true)} onPause={() => setIsVideoPlaying(false)}>
+                  <source src={ExerciseTherapyVideo} type="video/mp4" />
+                  Your browser does not support embedded video.
+                </video>
+              </article>
+            </div>
+            <button type="button" className="slider-arrow right-arrow video-slider-arrow" aria-label="Scroll videos right" onClick={() => scrollVideos(1)}>›</button>
           </div>
         </div>
       </section>
@@ -422,7 +604,7 @@ export const HomePage: React.FC = () => {
                 </div>
                 <div>
                   <span className="reach-us-label">Phone</span>
-                  <p><a href="tel:+918438118402">+91 8438118402</a></p>
+                  <p><a href={`tel:${CLINIC_PHONE_NUMBER}`}>+91 8438118402</a></p>
                 </div>
               </div>
               <div className="reach-us-actions">
@@ -434,7 +616,7 @@ export const HomePage: React.FC = () => {
                 >
                   Get Directions <ArrowRight aria-hidden="true" size={18} />
                 </a>
-                <a className="btn reach-us-call rounded-pill px-4 text-decoration-none" href="tel:+918438118402">
+                <a className="btn reach-us-call rounded-pill px-4 text-decoration-none" href={`tel:${CLINIC_PHONE_NUMBER}`}>
                   <Phone aria-hidden="true" size={18} /> Call Clinic
                 </a>
               </div>
